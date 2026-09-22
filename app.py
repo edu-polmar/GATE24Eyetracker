@@ -2,7 +2,21 @@ import cv2 as cv
 import mediapipe as mp
 import numpy as np
 
-cam = cv.VideoCapture(0)
+print(mp.__file__)
+print(hasattr(mp, 'solutions'))
+
+mp_face = mp.solutions.face_mesh
+face_mesh = mp_face.FaceMesh(
+    static_image_mode=False,
+    max_num_faces=1,
+    refine_landmarks=True,
+    min_detection_confidence=0.5
+    )
+
+VANSTER_IRIS = [474, 475, 476, 477]
+HOGER_IRIS = [469, 470, 471, 472]
+
+cam = cv.VideoCapture(0, cv.CAP_DSHOW)
 
 frame_width = int(cam.get(cv.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cam.get(cv.CAP_PROP_FRAME_HEIGHT))
@@ -13,16 +27,27 @@ out = cv.VideoWriter('output.mp4', fourcc, 20.0, (frame_width, frame_height))
 while True:
     ret, frame = cam.read()
     if not ret:
+        print("Failed to grab frame")
         break
 
     frame = cv.flip(frame, 1)
-    out.write(frame)
+    h, w = frame.shape[:2]
+    rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+    results = face_mesh.process(rgb)
 
-    cv.imshow('Camera', frame)
+    if results.multi_face_landmarks:
+        lm = results.multi_face_landmarks[0].landmark
+        for idx in VANSTER_IRIS + HOGER_IRIS:
+            x = int(lm[idx].x * w)
+            y = int(lm[idx].y * h)
+            cv.circle(frame, (x, y), 2, (0, 255, 0), -1)
 
-    if cv.waitKey(1) == ord('q'):
+    cv.imshow('Iris-detektion', frame)
+
+    if cv.waitKey(
+
+        1) & 0xFF == ord('q'):
         break
 
 cam.release()
-out.release()
 cv.destroyAllWindows()
