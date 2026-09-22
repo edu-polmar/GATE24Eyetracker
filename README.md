@@ -10,6 +10,3 @@ py -3.12 app.py
 
 För exti:
 q
-
-Current buggar:
-Video filen kan ej läsas när man öppnar den.

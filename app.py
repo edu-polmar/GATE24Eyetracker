@@ -16,13 +16,27 @@ face_mesh = mp_face.FaceMesh(
 VANSTER_IRIS = [474, 475, 476, 477]
 HOGER_IRIS = [469, 470, 471, 472]
 
-cam = cv.VideoCapture(0, cv.CAP_DSHOW)
+camera_index = None
+for i in range(5):
+    test_cam = cv.VideoCapture(i, cv.CAP_DSHOW)
+    if test_cam.isOpened():
+        print(f'Camera found on index {i}')
+        if camera_index is None:
+            camera_index = i
+    test_cam.release()
+
+if camera_index is None:
+    print('ERROR: No camera found')
+
+cam = cv.VideoCapture(camera_index, cv.CAP_DSHOW)
 
 frame_width = int(cam.get(cv.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cam.get(cv.CAP_PROP_FRAME_HEIGHT))
+print(f'Bredd: {frame_width}, Höjd: {frame_height}')
 
 fourcc = cv.VideoWriter_fourcc(*'mp4v')
 out = cv.VideoWriter('output.mp4', fourcc, 20.0, (frame_width, frame_height))
+print('VideoWriter opened:', out.isOpened())
 
 while True:
     ret, frame = cam.read()
@@ -42,6 +56,7 @@ while True:
             y = int(lm[idx].y * h)
             cv.circle(frame, (x, y), 2, (0, 255, 0), -1)
 
+    out.write(frame)
     cv.imshow('Iris-detektion', frame)
 
     if cv.waitKey(
@@ -50,4 +65,5 @@ while True:
         break
 
 cam.release()
+out.release()
 cv.destroyAllWindows()
