@@ -7,14 +7,20 @@ print(hasattr(mp, 'solutions'))
 
 mp_face = mp.solutions.face_mesh
 face_mesh = mp_face.FaceMesh(
-    static_image_mode=False,
     max_num_faces=1,
     refine_landmarks=True,
-    min_detection_confidence=0.5
+    min_detection_confidence=0.6,
+    min_tracking_confidence=0.6
     )
 
 VANSTER_IRIS = [474, 475, 476, 477]
 HOGER_IRIS = [469, 470, 471, 472]
+
+# Left eye indices list
+LEFT_EYE =[ 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398 ]
+# Right eye indices list
+RIGHT_EYE=[ 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246 ]
+
 
 camera_index = None
 for i in range(5):
@@ -38,6 +44,8 @@ fourcc = cv.VideoWriter_fourcc(*'mp4v')
 out = cv.VideoWriter('output.mp4', fourcc, 20.0, (frame_width, frame_height))
 print('VideoWriter opened:', out.isOpened())
 
+
+
 while True:
     ret, frame = cam.read()
     if not ret:
@@ -46,15 +54,20 @@ while True:
 
     frame = cv.flip(frame, 1)
     h, w = frame.shape[:2]
-    rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-    results = face_mesh.process(rgb)
+    rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+    results = face_mesh.process(rgb_frame)
+    img_h, img_w = frame.shape[:2]
 
     if results.multi_face_landmarks:
-        lm = results.multi_face_landmarks[0].landmark
-        for idx in VANSTER_IRIS + HOGER_IRIS:
-            x = int(lm[idx].x * w)
-            y = int(lm[idx].y * h)
-            cv.circle(frame, (x, y), 2, (0, 255, 0), -1)
+        mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
+        cv.polylines(frame, [mesh_points[VANSTER_IRIS]], True, (0,255,0), 1, cv.LINE_AA)
+        cv.polylines(frame, [mesh_points[HOGER_IRIS]], True, (0,255,0), 1, cv.LINE_AA)
+        (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[VANSTER_IRIS])
+        (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[HOGER_IRIS])
+        center_left = np.array([l_cx, l_cy], dtype=np.int32)
+        center_right = np.array([r_cx, r_cy], dtype=np.int32)
+        cv.circle(frame, center_left, int(l_radius), (255,0,255), 2, cv.LINE_AA)
+        cv.circle(frame, center_right, int(r_radius), (255,0,255), 2, cv.LINE_AA)
 
     out.write(frame)
     cv.imshow('Iris-detektion', frame)
