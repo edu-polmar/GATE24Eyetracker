@@ -1,50 +1,62 @@
+import sys
+
 import cv2 as cv
 import mediapipe as mp
 import numpy as np
+
 
 print(mp.__file__)
 print(hasattr(mp, 'solutions'))
 print(mp.__version__)
 
-mp_face = mp.solutions.face_mesh
-face_mesh = mp_face.FaceMesh(
+
+# ------ SETTINGS ------
+
+Video_file = 'output.mp4'
+FPS = 20.0
+LEFT_IRIS = [474, 475, 476, 477]
+RIGHT_IRIS = [469, 470, 471, 472]
+COLOR_IRIS = (255, 0, 255)
+
+
+# ------ Functions ------
+def find_camera_index():
+    for i in range(5):
+        test_cam = cv.VideoCapture(i, cv.CAP_DSHOW)
+        works = test_cam.isOpened()
+        test_cam.release()
+        if works:
+            print(f'Camera found at index {i}')
+            return i
+    return None
+
+def draw_iris(frame, mesh_points, iris_index):
+    (cx, cy), radius = cv.minEnclosingCircle(mesh_points[iris_index])
+    cv.circle(frame, (int(cx), int(cy)), int(radius), COLOR_IRIS, 2, cv.LINE_AA)
+
+def main():
+    camera_index = find_camera_index()
+    if camera_index is None:
+        print("No camera found. Exiting.")
+        sys.exit()
+
+    cam = cv.VideoCapture(camera_index, cv.CAP_DSHOW)
+    frame_width = int(cam.get(cv.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cam.get(cv.CAP_PROP_FRAME_HEIGHT))
+    print(f'Bredd: {frame_width}, Höjd: {frame_height}')
+
+    fourcc = cv.VideoWriter_fourcc(*'mp4v')
+    out = cv.VideoWriter('output.mp4', fourcc, 20.0, (frame_width, frame_height))
+    print('VideoWriter opened:', out.isOpened())
+
+    face_mesh = mp.solutions.face_mesh.FaceMesh(
     max_num_faces=1,
     refine_landmarks=True,
     min_detection_confidence=0.6,
     min_tracking_confidence=0.6
     )
 
-VANSTER_IRIS = [474, 475, 476, 477]
-HOGER_IRIS = [469, 470, 471, 472]
-
-# Left eye indices list
-LEFT_EYE =[ 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398 ]
-# Right eye indices list
-RIGHT_EYE=[ 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246 ]
-
-camera_index = None
-for i in range(5):
-    test_cam = cv.VideoCapture(i, cv.CAP_DSHOW)
-    if test_cam.isOpened():
-        print(f'Camera found on index {i}')
-        if camera_index is None:
-            camera_index = i
-    test_cam.release()
-
-if camera_index is None:
-    print('ERROR: No camera found')
-
-cam = cv.VideoCapture(camera_index, cv.CAP_DSHOW)
-
-frame_width = int(cam.get(cv.CAP_PROP_FRAME_WIDTH))
-frame_height = int(cam.get(cv.CAP_PROP_FRAME_HEIGHT))
-print(f'Bredd: {frame_width}, Höjd: {frame_height}')
-
-fourcc = cv.VideoWriter_fourcc(*'mp4v')
-out = cv.VideoWriter('output.mp4', fourcc, 20.0, (frame_width, frame_height))
-print('VideoWriter opened:', out.isOpened())
-
-
+# ----- Main loop -----
 
 while True:
     ret, frame = cam.read()
@@ -54,27 +66,27 @@ while True:
 
     frame = cv.flip(frame, 1) #flip för mer naturlig spegelbild
     h, w = frame.shape[:2]
-    rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-    results = face_mesh.process(rgb_frame)
-    img_h, img_w = frame.shape[:2]
+    results = face_mesh.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
 
     if results.multi_face_landmarks:
-        mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark]) #pixel coordinates of the face mesh landmarks
-        (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[VANSTER_IRIS]) #mesh points of the left iris
-        (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[HOGER_IRIS]) #mesh points of the right iris
-        center_left = np.array([l_cx, l_cy], dtype=np.int32) #calculate the center of the left iris
-        center_right = np.array([r_cx, r_cy], dtype=np.int32) #calculate the center of the right iris
-        cv.circle(frame, center_left, int(l_radius), (255,0,255), 2, cv.LINE_AA) #circle around the left iris
-        cv.circle(frame, center_right, int(r_radius), (255,0,255), 2, cv.LINE_AA) #circle around the right iris
+        landmarks = results.multi_face_landmarks[0].landmark
+
+        mesh_points=np.array([[p.x *w, p.y * h] for p in landmarks]).astype(int)
+        
+        draw_iris(frame, mesh_points, LEFT_IRIS)
+        draw_iris(frame, mesh_points, RIGHT_IRIS)
 
     out.write(frame)
     cv.imshow('Iris-detektion', frame)
-
-    if cv.waitKey(
-
-        1) & 0xFF == ord('q'):
+    if cv.waitKey(1) & 0xFF == ord('q'):
         break
 
+
+#cleanup
 cam.release()
 out.release()
 cv.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
